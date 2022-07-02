@@ -2,6 +2,8 @@
 
 XenPoster - A tool to post to XenForo forums from the command line
 
+Version 0.2.0
+
 ## Usage
 
 ```bash
