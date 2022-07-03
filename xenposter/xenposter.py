@@ -1,9 +1,7 @@
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from urllib.parse import urlparse
+from utils import *
 
-import argparse, time, os, mintotp, pickle
+import argparse
 
 # Create a parser for the command line arguments
 parser = argparse.ArgumentParser(description='xenposter - XenForo Automation Script')
@@ -34,57 +32,6 @@ remote_options.add_argument("--remote-port", help="Remote port to use")
 
 args = parser.parse_args()
 
-LIST_OF_EMOTES = [
-    "like",
-    "love",
-    "haha",
-    "wow",
-    "sad",
-    "angry",
-    "dislike",
-    "turdle"
-]
-
-def save_cookie(driver: webdriver.Chrome or webdriver.Firefox or webdriver.Remote, path: str) -> None:
-    with open(path, 'wb') as filehandler:
-        pickle.dump(driver.get_cookies(), filehandler)
-
-def load_cookie(driver: webdriver.Chrome or webdriver.Firefox or webdriver.Remote, path: str) -> None:
-     with open(path, 'rb') as cookiesfile:
-         cookies = pickle.load(cookiesfile)
-         for cookie in cookies:
-             driver.add_cookie(cookie) 
-
-def create_driver_for_chrome_firefox(browser_choice: str, options: webdriver.ChromeOptions or webdriver.FirefoxOptions or None) -> webdriver.Chrome or webdriver.Firefox or Exception:
-    if browser_choice == "chrome":
-        if options is None:
-            options = webdriver.ChromeOptions()
-        return webdriver.Chrome(options=options)
-    elif browser_choice == "firefox":
-        if options is None:
-            options = webdriver.FirefoxOptions()
-        return webdriver.Firefox(options=options)
-    else:
-        raise Exception("No browser specified")
-
-def create_driver_for_remote(browser_choice: str, options: webdriver.ChromeOptions or webdriver.FirefoxOptions or None, remote_site: str, remote_port: str) -> webdriver.Remote or Exception:
-    if browser_choice == "chrome":
-        if options is None:
-            options = webdriver.ChromeOptions()
-        return webdriver.Remote(
-            command_executor=f"http://{remote_site}:{remote_port}",
-            options=options
-        )
-    elif browser_choice == "firefox":
-        if options is None:
-            options = webdriver.FirefoxOptions()
-        return webdriver.Remote(
-            command_executor=f"http://{remote_site}:{remote_port}",
-            options=options
-        )
-    else:
-        raise Exception("No browser specified")
-
 # Create a driver for the browser
 if args.chrome and not args.remote:
     options = webdriver.ChromeOptions()  # Initializing Chrome Options from the Webdriver
@@ -94,9 +41,9 @@ if args.chrome and not args.remote:
     options.add_argument("disable-popup-blocking")
     options.add_argument("disable-notifications")
     options.add_argument("disable-gpu")
-    driver = create_driver_for_chrome_firefox("chrome", options, None, None)
+    driver = create_driver_for_chrome_firefox("chrome", options)
 elif args.firefox and not args.remote:
-    driver = create_driver_for_chrome_firefox("firefox", None, None, None)
+    driver = create_driver_for_chrome_firefox("firefox", None)
 elif args.remote:
     if args.chrome:
         options = webdriver.ChromeOptions()  # Initializing Chrome Options from the Webdriver
@@ -123,7 +70,7 @@ else:
     print("This script requires a browser to be specified. Use -c for Chrome or -f for Firefox.")
     exit()
 
-if not args.login or not args.post or not args.react:
+if not args.login and not args.post and not args.react:
     print("This script requires you to specify what actions you want to do. Currently, --login, --post, --react are supported.")
     exit()
 
@@ -131,89 +78,18 @@ if args.emote not in LIST_OF_EMOTES:
     print("Invalid emote. Valid emotes are: " + ", ".join(LIST_OF_EMOTES))
     exit()
 
-def login_to_forums(url: str, username: str, password: str, timeout: int, totp: bool or None = None) -> None:
-    url_parsed = urlparse(url)
-    driver.get(f"{url_parsed.scheme}://{url_parsed.netloc}/login")
-    time.sleep(timeout)
-
-    # Accept Cookies
-    try: 
-        elem = driver.find_element(By.CLASS_NAME, "js-noticeDismiss.button--notice.button.button--icon.button--icon--confirm")
-        elem.click()
-    except Exception as e:
-        print("No notice found")
-
-    # Find the username and password fields
-    username_field = driver.find_element(By.NAME, "login")
-    password_field = driver.find_element(By.NAME, "password")
-
-    # Enter the username and password
-    username_field.send_keys(username)
-    password_field.send_keys(password)
-
-    # Press the login button
-    time.sleep(timeout)
-    password_field.send_keys(Keys.RETURN)
-
-    if args.totp:
-        # Generate a TOTP code
-        totp_code = mintotp.totp(totp)
-        # Enter the TOTP code
-        elem = driver.find_element(By.NAME, "code")
-        elem.send_keys(totp_code)
-        # Click the submit button
-        elem = driver.find_element(By.CLASS_NAME, "button--primary.button.button--icon.button--icon--login")
-        time.sleep(timeout)
-        elem.click()
-    
-    time.sleep(timeout)
-
-    # Save the cookies
-    save_cookie(driver, "cookies.pkl")
-
-def post_message(url: str, message: str, timeout: int) -> None:
-    # Load the cookies
-    load_cookie(driver, "cookies.pkl")
-
-    # Go to the thread
-    driver.get(url)
-    time.sleep(timeout)
-
-    # Find the message field
-    message_box = driver.find_element(By.CLASS_NAME, "fr-element.fr-view")
-
-    # Enter the message
-    message_box.send_keys(message)
-
-    # Press the post button
-    message_box.send_keys(Keys.CONTROL, Keys.RETURN)
-
-def react_to_post(url: str, emote: str, timeout: int) -> None:
-    # Load the cookies
-    load_cookie(driver, "cookies.pkl")
-
-    # Go to the thread
-    for index, emote_from_list in enumerate(LIST_OF_EMOTES):
-        if emote_from_list == emote:
-            driver.get(f"{url}/react?reaction_id={index}")
-        
-    time.sleep(timeout)
-
-    # Find the react confirm button
-    react_confirm_button = driver.find_element(By.CLASS_NAME, "button--primary.button.button--icon.button--icon--confirm")
-
-    # Click the react confirm button
-    react_confirm_button.click()
-
 try:
     if args.login:
-        login_to_forums(args.url, args.username, args.password, args.timeout, args.totp)
+        login_to_forums(driver, args.url, args.username, args.password, args.timeout, args.totp)
+        exit()
     if args.post:
-        login_to_forums(args.url, args.username, args.password, args.timeout, args.totp)
-        post_message(args.url, args.message, args.timeout)
+        login_to_forums(driver, args.url, args.username, args.password, args.timeout, args.totp)
+        post_message(driver, args.url, args.message, args.timeout)
+        exit()
     if args.react:
-        login_to_forums(args.url, args.username, args.password, args.timeout, args.totp)
-        react_to_post(args.url, args.emote, args.timeout)
+        login_to_forums(driver, args.url, args.username, args.password, args.timeout, args.totp)
+        react_to_post(driver, args.url, args.emote, args.timeout)
+        exit()
 except Exception as e:
     print(e)
     exit()

@@ -164,3 +164,6 @@ linux/
 
 # Windows binaries
 windows/
+
+# Cookies
+cookies.pkl
