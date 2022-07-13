@@ -108,7 +108,10 @@ def post_message(driver: webdriver, url: str, message: str, timeout: int) -> Non
     message_box = driver.find_element(By.CLASS_NAME, "fr-element.fr-view")
 
     # Enter the message
-    message_box.send_keys(message)
+    message_split = message.split("\n")
+    for line in message_split:
+        message_box.send_keys(line)
+        message_box.send_keys(Keys.RETURN)
 
     # Press the post button
     message_box.send_keys(Keys.CONTROL, Keys.RETURN)
